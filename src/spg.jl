@@ -135,7 +135,8 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
         sts = dot(W.s, W.s)
         sty = dot(W.s, W.y)
 
-        W.spectral = (sty <= 0.0) ? par.lmax : clamp(sts/sty, par.lmin, par.lmax)
+        W.spectral =
+            (sty <= 0.0) ? par.lmax : clamp(sts/sty, par.lmin, par.lmax)
 
         # best iterate found so far
         if opt < optbest
@@ -219,7 +220,8 @@ function spg_compl(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, L)
         @inbounds for j in 1:P.ncc
             a = P.cvar[j]
             b = P.n + j     # x[a] and x[b] are complementary vars
-            if W.xnew[a]^2 + min(0.0, W.xnew[b])^2 >= W.xnew[b]^2 + min(0.0, W.xnew[a])^2
+            if W.xnew[a]^2 + min(0.0, W.xnew[b])^2 >=
+                W.xnew[b]^2 + min(0.0, W.xnew[a])^2
                 W.xnew[b] = 0.0
             else
                 W.xnew[a] = 0.0

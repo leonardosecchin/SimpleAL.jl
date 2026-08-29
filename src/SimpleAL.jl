@@ -108,7 +108,8 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
     end
 
     # indices of equality, inequality constraints
-    # original inequality constraints involved in complementarity becomes equality
+    # original inequality constraints involved in complementarity becomes
+    # equality
     ceq = Int64[]
     cineq = Int64[]
     cineqLU = Int64[]
@@ -135,7 +136,7 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
         Vector{Float64}(undef, mm),     # scaled constraints
         Vector{Float64}(undef, mm),     # unscaled constraints
         Vector{Float64}(undef, nn),     # gradient of the augmented Lagrangian
-        Vector{Float64}(undef, nn),     # (projected) gradient of the augmented Lagrangian
+        Vector{Float64}(undef, nn),     # (projected) grad. aug. Lag.
         Vector{Float64}(undef, n),      # working vector of size n
         Vector{Float64}(undef, m),      # working vector of size m
         Vector{Float64}(undef, nn),     # working vector for compute_opt
@@ -151,23 +152,25 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
 
     # starting point
     W.x .= 0.0
-    if isempty(x0)
+    @inbounds if isempty(x0)
         if !isempty(nlp.meta.x0)
-            @inbounds @views W.x[1:n] .= nlp.meta.x0
+            W.x[1:n] .= nlp.meta.x0
         end
     else
         W.x[1:n] .= Float64.(x0[1:n])
     end
 
     # project the starting point
-    @inbounds @views @. W.x[1:n] = clamp(W.x[1:n], nlp.meta.lvar, nlp.meta.uvar)
+    @inbounds @views @. W.x[1:n] = clamp(
+        W.x[1:n], nlp.meta.lvar, nlp.meta.uvar
+    )
 
     # Adjust the starting point to satisfy complementarities:
     # if y = 0 (the original var in compl), make the corresponding slack = c[j]
-    if ncc > 0
+    @inbounds if ncc > 0
         k = 0
-        @inbounds @views W.mwork = cons!(nlp, W.x[1:n], W.mwork)
-        @inbounds for j in 1:ncc
+        @views W.mwork = cons!(nlp, W.x[1:n], W.mwork)
+        for j in 1:ncc
             if W.x[cvar[j]] == 0.0
                 k += 1
                 W.x[n + k] = max(0.0, W.mwork[j])
@@ -186,16 +189,17 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
 
     # compute constraints scaling factors
     wc = ones(m + mLU)
-    @inbounds if extra_par.scale
-        @views J = jac(nlp, W.x[1:n])
+    @inbounds @views if extra_par.scale
+        J = jac(nlp, W.x[1:n])
         for col in 1:(length(J.colptr) - 1)
             idx = J.colptr[col]:(J.colptr[col+1]-1)
-            @views @. wc[J.rowval[idx]] = max(wc[J.rowval[idx]], abs(J.nzval[idx]))
+            @. wc[J.rowval[idx]] =
+                max(wc[J.rowval[idx]], abs(J.nzval[idx]))
         end
-        @views @. wc[1:m] = max(extra_par.wmin, 1.0/wc[1:m])
+        @. wc[1:m] = max(extra_par.wmin, 1.0/wc[1:m])
         # duplicated constraints (those with both bounds) have the same
-        # scaling factors, but multiplied by -1 as they are of the form c(x) >= L
-        @views @. wc[(m + 1):(m + mLU)] = -wc[cineqLU]
+        # scaling factors, multiplied by -1 as they are of the form c(x) >= L
+        @. wc[(m + 1):(m + mLU)] = -wc[cineqLU]
     end
 
     # transform c(x) >= L to -c(x) <= -L by adjusting the sign of wc
@@ -220,13 +224,13 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
         cu,                         # cu
         deepcopy(nlp.meta.lvar),    # xl (does not contain compl slacks)
         deepcopy(nlp.meta.uvar),    # xu (does not contain compl slacks)
-        consec_range(ceq),          # indices of equality constraints in nlp
-        consec_range(cineq),        # indices of inequality constraints in nlp
-        consec_range(cineqLU),      # indices of inequality constraints in nlp with both bounds
-        mLU,                        # number of constraints with both bounds
-        ncc,                        # number of compl slacks
-        consec_range(cc),           # indices of constraints in nlp involved in complementarities
-        cvar,                       # indice of compl var for each constraint in cc
+        consec_range(ceq),          # indices eq cons in nlp
+        consec_range(cineq),        # indices ineq cons in nlp
+        consec_range(cineqLU),      # indices ineq cons in nlp with both bounds
+        mLU,                        # number constraints with both bounds
+        ncc,                        # number compl slacks
+        consec_range(cc),           # indices cons in nlp involved in compl
+        cvar,                       # indice compl var for each cons in cc
         wf,                         # obj scaling factor
         wc                          # constraints scaling factors
     )
@@ -344,7 +348,8 @@ function al(
             break
         end
         # Stationary point of the infeasibility
-        if (infeas > sqrt(epsfeas)) && (opt_infeas <= max(1e-12, 1e-4 * epsopt))
+        if (infeas > sqrt(epsfeas)) &&
+            (opt_infeas <= max(1e-12, 1e-4 * epsopt))
             if verbose > 0
                 println("\n EXIT: Stationary point of the infeasibility")
             end
@@ -370,7 +375,8 @@ function al(
         # Objective << -1
         if (W.f < extra_par.fmin) && (infeas <= epsfeas)
             if verbose > 0
-                println("\n EXIT: Objective decreased a lot... Is the problem unlimited?")
+                println("\n EXIT: Objective decreased a lot... Is the " *
+                    "problem unlimited?")
             end
             status = 4
             break
@@ -389,20 +395,23 @@ function al(
             @inbounds @views @. W.mwork[P.cineq] = max(0.0, W.mwork[P.cineq])
             sq_infeas = dot(W.mwork, W.mwork)
             if P.mLU > 0
-                @inbounds @views @. W.mwork[1:P.mLU] = max(0.0, W.c[(P.m + 1):(P.m + P.mLU)])
-                @inbounds @views sq_infeas += dot(W.mwork[1:P.mLU], W.mwork[1:P.mLU])
+                @views @. W.mwork[1:P.mLU] =
+                    max(0.0, W.c[(P.m + 1):(P.m + P.mLU)])
+                @views sq_infeas += dot(W.mwork[1:P.mLU], W.mwork[1:P.mLU])
             end
 
             W.rho = clamp(
                 2.0 * max(1.0, abs(W.f)) / max(1.0, sq_infeas),
                 extra_par.rhoinimin, extra_par.rhoinimax
             )
-        elseif (max(infeas, infeas_compl) > epsfeas^1.5) && (infeas_compl > extra_par.tau * previous_infeas_compl)
+        elseif (max(infeas, infeas_compl) > epsfeas^1.5) &&
+            (infeas_compl > extra_par.tau * previous_infeas_compl)
             W.rho *= extra_par.theta
         end
 
         # set tolerance for the subproblem
-        if (iter > 1) && (infeas_compl <= sqrt(epsfeas)) && (opt <= sqrt(epsopt))
+        if (iter > 1) &&
+            (infeas_compl <= sqrt(epsfeas)) && (opt <= sqrt(epsopt))
             epsoptk = min(extra_par.tau * opt, 1e-1 * epsoptk)
             epsoptk = max(epsoptk, 1e-1 * epsopt)
         end
@@ -420,10 +429,12 @@ function al(
         # estimate multipliers
         @. W.lam += W.rho * W.c
         @inbounds @views @. W.lam[P.cineq] = max(0.0, W.lam[P.cineq])
-        @inbounds @views @. W.lam[(P.m + 1):(P.m + P.mLU)] = max(0.0, W.lam[(P.m + 1):(P.m + P.mLU)])
+        @inbounds @views @. W.lam[(P.m + 1):(P.m + P.mLU)] =
+            max(0.0, W.lam[(P.m + 1):(P.m + P.mLU)])
 
         # maximum norm of unscaled lam
-        uns_maxnorm_lam = max(uns_maxnorm_lam, norm((P.wc .* W.lam) ./ abs(P.wf), Inf))
+        uns_maxnorm_lam =
+            max(uns_maxnorm_lam, norm((P.wc .* W.lam) ./ abs(P.wf), Inf))
 
         # new projected multipliers
         clamp!(W.lam, extra_par.lammin, extra_par.lammax)
