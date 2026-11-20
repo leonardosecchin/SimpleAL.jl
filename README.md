@@ -2,7 +2,7 @@
 
 This is a simple Julia implementation of the safeguarded augmented Lagrangian method for solving nonlinear programming problems, including those with complementarity constraints, described in
 
-[*Andreani, Rosa, Secchin. On the boundedness of multipliers in augmented Lagrangian methods for mathematical programs with complementarity constraints (submitted). 2025*](https://optimization-online.org/?p=31446)
+[*Andreani, Rosa, Secchin. On the boundedness of multipliers in augmented Lagrangian methods for mathematical programs with complementarity constraints. To appear in SIOPT, 2027*](https://optimization-online.org/?p=31446)
 
 ## Installation
 
@@ -94,4 +94,4 @@ This research was supported by the São Paulo Research Foundation (FAPESP) (gran
 
 If you use this code in your publications, please cite us. For now, you can cite the preprint:
 
-[*Andreani, Rosa, Secchin. On the boundedness of multipliers in augmented Lagrangian methods for mathematical programs with complementarity constraints (submitted). 2025*](https://optimization-online.org/?p=31446)
+[*Andreani, Rosa, Secchin. On the boundedness of multipliers in augmented Lagrangian methods for mathematical programs with complementarity constraints. To appear in SIOPT, 2027*](https://optimization-online.org/?p=31446)
