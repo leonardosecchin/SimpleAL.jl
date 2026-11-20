@@ -129,7 +129,7 @@ end
 function compute_uns_infeas(P::PROBLEM, W::WORK)
     @inbounds @views begin
     res = norm(W.uns_c[P.ceq], Inf)
-    res = max(res, norm(max.(0.0, W.uns_c[P.ceq]), Inf))
+    res = max(res, norm(max.(0.0, W.uns_c[P.cineq]), Inf))
     res = max(res, norm(max.(0.0, W.uns_c[(P.m + 1):(P.m + P.mLU)]), Inf))
     end
     return res

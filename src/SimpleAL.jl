@@ -86,7 +86,7 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
     cc = Int64[]
     cvar = Int64[]
     ncc = 0
-    if typeof(nlp) == AmplModel
+    if nlp isa AmplModel
         # complementarities in nlp are of the form
         #   0 <= c(x) ⟂ y >= 0,
         # where y is a variable of the model.
@@ -114,11 +114,19 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
     cineq = Int64[]
     cineqLU = Int64[]
     @inbounds for j in 1:m
-        if (nlp.meta.lcon[j] == nlp.meta.ucon[j]) || (j in cc)
+        cL = nlp.meta.lcon[j]
+        cU = nlp.meta.ucon[j]
+        if cL > cU
+            return nothing, nothing, 5
+        end
+        if isinf(cL) && isinf(cU)
+            return nothing, nothing, -1
+        end
+        if (cL == cU) || (j in cc)
             push!(ceq, j)
         else
             push!(cineq, j)
-            if !isinf(nlp.meta.lcon[j]) && !isinf(nlp.meta.ucon[j])
+            if !isinf(cL) && !isinf(cU)
                 push!(cineqLU, j)
             end
         end
@@ -168,12 +176,10 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
     # Adjust the starting point to satisfy complementarities:
     # if y = 0 (the original var in compl), make the corresponding slack = c[j]
     @inbounds if ncc > 0
-        k = 0
         @views W.mwork = cons!(nlp, W.x[1:n], W.mwork)
         for j in 1:ncc
             if W.x[cvar[j]] == 0.0
-                k += 1
-                W.x[n + k] = max(0.0, W.mwork[j])
+                W.x[n + j] = max(0.0, W.mwork[cc[j]])
             end
         end
     end
@@ -235,7 +241,7 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
         wc                          # constraints scaling factors
     )
 
-    return P, W
+    return P, W, 0
 end
 
 """
@@ -260,7 +266,8 @@ is maintained in the subproblems are employed.
   - = 2: penalty parameter too large
   - = 3: maximum number of iterations reached
   - = 4: problem probably unlimited
-  - =-1: unknown error
+  - = 5: infeasibility detected
+  - =-1: other/unknown error
 - `iter`: number of outer iterations performed
 - `sol`: final primal point
 - `f`: objective at `sol`
@@ -295,7 +302,13 @@ function al(
     time = @elapsed begin
 
     # allocate and initialize fundamental structures
-    P, W = initialize(nlp, extra_par, x0)
+    P, W, st = initialize(nlp, extra_par, x0)
+    if st != 0
+        if verbose > 0
+            println("Error while initializing. Check if the problem has free contraints.")
+        end
+        return INFO(st, 0, [], NaN, NaN, NaN, NaN, [], NaN, NaN, 0.0)
+    end
 
     # evaluate scaled objective and constraints
     fc!(nlp, P, W, W.x)
@@ -416,7 +429,8 @@ function al(
             epsoptk = max(epsoptk, 1e-1 * epsopt)
         end
 
-        spg_iter, spg_st = spg(nlp, P, W, extra_par, epsoptk, epsfeas, verbose)
+        # solve subproblem
+        spg(nlp, P, W, extra_par, epsoptk, epsfeas, verbose)
 
         # =============================
         # Update for the next iteration

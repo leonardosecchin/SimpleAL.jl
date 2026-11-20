@@ -49,14 +49,27 @@ end
 
 function assert_params(par::EXTRA_PAR, nlp, epsfeas, epsopt, maxit)
     @assert nlp.meta.ncon > 0 "unconstrained problem"
-    @assert epsfeas > 0.0 "epsfeas must be positive"
-    @assert epsopt > 0.0 "epsopt must be positive"
+    @assert epsfeas > 0 "epsfeas must be positive"
+    @assert epsopt > 0 "epsopt must be positive"
     @assert maxit > 0 "maxit must be positive"
-    @assert 0.0 <= par.tau < 1.0 "tau must be in [0,1)"
-    @assert par.theta > 1.0 "theta must be > 1"
-    @assert (par.lammax >= 0.0) && (par.lammin <= 0.0) "0 must be in [lammin,lammax]"
-    @assert par.rhomax > 0.0 "rhomax must by positive"
-    @assert 0.0 < par.rhoinimin <= par.rhoinimax "it must be 0.0 < rhoinimin <= rhoinimax"
+    @assert 0 <= par.tau < 1 "tau must be in [0,1)"
+    @assert par.theta > 1 "theta must be > 1"
+    @assert (par.lammax >= 0) && (par.lammin <= 0) "0 must be in [lammin,lammax]"
+    @assert par.rhomax > 0 "rhomax must by positive"
+    @assert 0 < par.rhoinimin <= par.rhoinimax "it must be 0 < rhoinimin <= rhoinimax"
+    @assert par.delta > 0 "delta must be positive"
+
+    @assert par.spg_maxit >= 1 "spg: maxit must be ≥ 1"
+    @assert 0 < par.epsnoprogf <= 1 "spg: tol for declaring lack of progress must be in (0,1]"
+    @assert par.maxnoprogf >= 1 "spg: maximum number of consecutive iter without progress must be ≥ 1"
+
+    @assert 0 < par.eta < 1 "regular spg: Armijo parameter be positive in (0,1)"
+    @assert par.lsm >= 1 "regular spg: lsm must be ≥ 1"
+    @assert 0 < par.t_redfac < 1 "regular spg: reduction factor must be in (0,1)"
+    @assert 0 < par.sigma1 < par.sigma2 < 1 "regular spg: it must be 0 < σ1 < σ2 < 1"
+    @assert 0 < par.lmin <= par.lmax "regular spg: it must be 0 < lmin ≤ lmax"
+    @assert par.r_incfac > 1 "compl spg: increase factor must be > 1"
+    @assert 0 < par.wmin <= 1 "minimum scale factor must be in (0,1]"
 end
 
 function banner(P::PROBLEM, par::EXTRA_PAR, epsopt, epsfeas, maxit)
@@ -64,7 +77,7 @@ function banner(P::PROBLEM, par::EXTRA_PAR, epsopt, epsfeas, maxit)
     println(" This is a simple implementation of the safeguarded augmented")
     println(" Lagrangian method described in\n")
     println(" Andreani, Rosa, Secchin. On the Boundedness of Multipliers in")
-    println(" Augmented Lagrangian Methods for MPCCs (submitted). 2025")
+    println(" Augmented Lagrangian Methods for MPCCs. SIOPT, 2027")
     println()
     println(" Visit https://github.com/leonardosecchin/almpcc for details")
     println(" ",repeat('=',61))

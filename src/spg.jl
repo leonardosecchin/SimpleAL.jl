@@ -1,6 +1,4 @@
 function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose)
-    #W.x .+= 1e-6 * (1.0 .- 2.0*rand(length(W.x)))
-
     L = augL(P, W)
 
     fc!(nlp, P, W, W.x)
@@ -17,11 +15,14 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
     tsmall = max(1e-7 * norm(W.x, Inf), 1e-10)
     @. W.s = tsmall * W.pgL
     @. W.xnew = W.x + W.s
+    fc!(nlp, P, W, W.xnew)
     gL!(nlp, W.gLnew, P, W, W.xnew)
     @. W.y = W.gLnew - W.gL
     sts = dot(W.s, W.s)
     sty = dot(W.s, W.y)
     W.spectral = (sty <= 0.0) ? par.lmax : clamp(sts/sty, par.lmin, par.lmax)
+
+    fc!(nlp, P, W, W.x)
 
     # save initial solution as the best
     optbest = opt
@@ -44,7 +45,7 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
             break
         end
 
-        if (iter >= par.spg_maxit)
+        if iter >= par.spg_maxit
             W.x .= W.xbest
             fc!(nlp, P, W, W.x)
             gL!(nlp, W.gL, P, W, W.x)
@@ -63,9 +64,9 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
 
             if noprogf >= par.maxnoprogf
                 W.x .= W.xbest
+                fc!(nlp, P, W, W.x)
                 gL!(nlp, W.gL, P, W, W.x)
                 minus_proj_lgL!(W.pgL, P, W, 1.0)
-                fc!(nlp, P, W, W.x)
 
                 status = 5
                 spg_print_info(W, iter, L, opt, true, status, verbose)
@@ -83,13 +84,13 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
 
         if P.ncc == 0
             # usual SPG
-            L, st = spg_ls(nlp, P, W, par, L, opt)
+            L, st = spg_ls(nlp, P, W, par, L)
         else
             # NPG method of Guo and Deng
             L, st = spg_compl(nlp, P, W, par, L)
         end
 
-        if isnan(L)
+        if !isfinite(L)
             W.x .= W.xbest
             fc!(nlp, P, W, W.x)
             gL!(nlp, W.gL, P, W, W.x)
@@ -101,14 +102,11 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
         end
 
         # if no progress can be expected, returns the best x found so far
-        if (st == 1)
-            if iter > 0
-                #W.x .= W.xbest
-                W.xbest = W.x
-                gL!(nlp, W.gL, P, W, W.x)
-                minus_proj_lgL!(W.pgL, P, W, 1.0)
-            end
+        if st == 1
+            W.x .= W.xbest
             fc!(nlp, P, W, W.x)
+            gL!(nlp, W.gL, P, W, W.x)
+            minus_proj_lgL!(W.pgL, P, W, 1.0)
 
             status = 4
             spg_print_info(W, iter, L, opt, true, status, verbose)
@@ -151,7 +149,7 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
 end
 
 # line search
-function spg_ls(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, L, pgL_norm)
+function spg_ls(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, L)
     Lmax = maximum(W.lastL)
 
     # gL' * direction
@@ -230,7 +228,7 @@ function spg_compl(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, L)
 
         fc!(nlp, P, W, W.xnew)
         Lnew = augL(P, W)
-        @inbounds xnorm2 = sqeuclidean(W.xnew, W.x)
+        xnorm2 = sqeuclidean(W.xnew, W.x)
         r *= par.r_incfac
     end
 
