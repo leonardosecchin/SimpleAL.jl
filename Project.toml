@@ -1,11 +1,10 @@
 name = "SimpleAL"
 uuid = "ea2d8483-1383-40d0-bc53-921af6bb49bd"
-authors = ["Leonardo D. Secchin"]
 version = "0.1.0"
+authors = ["Leonardo D. Secchin"]
 
 [deps]
 AmplNLReader = "77dd3d4c-cb1d-5e09-9340-85030ff7ba66"
-Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NLPModels = "a4795742-8479-5a88-8948-cc11e1c8c1a6"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
@@ -13,7 +12,6 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
 AmplNLReader = "0.12.0"
-Distances = "0.10.12"
 LinearAlgebra = "1.11.0"
 NLPModels = "0.21.5"
 Printf = "1.11.0"

@@ -51,6 +51,10 @@ function gL!(nlp, gL, P::PROBLEM, W::WORK, x)
     # factor for "original" constraints
     @. W.mwork = W.lam[1:P.m] + W.rho * W.c[1:P.m]
     @. W.mwork[P.cineq] = max(0.0, W.mwork[P.cineq])
+    if P.ncc > 0
+        # complementarity slacks
+        gL[(P.n + 1):(P.n + P.ncc)] .= -W.mwork[P.cc]
+    end
     @. W.mwork *= P.wc[1:P.m]
     # sum factors of duplicated constraints
     if P.mLU > 0
@@ -63,10 +67,6 @@ function gL!(nlp, gL, P::PROBLEM, W::WORK, x)
     # add gradient of the objective function
     W.nwork = grad!(nlp, x[1:P.n], W.nwork)
     @. gL[1:P.n] += P.wf * W.nwork
-    if P.ncc > 0
-        # complementarity slacks
-        gL[(P.n + 1):(P.n + P.ncc)] .= -W.mwork[P.cc]
-    end
     end
     return
 end
@@ -87,7 +87,7 @@ function minus_proj_lgL!(p, P::PROBLEM, W::WORK, l)
 end
 
 # compute the scaled optimality measure
-function compute_opt(P::PROBLEM, W::WORK, epsfeas, nor; delta = 1e-6)
+function compute_opt(P::PROBLEM, W::WORK, nor, delta)
     if P.ncc == 0
         return norm(W.pgL, nor)
     else
@@ -139,8 +139,12 @@ function compute_opt_infeas(nlp, P::PROBLEM, W::WORK)
     @inbounds @views begin
     W.mwork[P.ceq] .= W.c[P.ceq]
     @. W.mwork[P.cineq] = max(0.0, W.c[P.cineq])
-    @. W.mwork[P.cineqLU] += max(0.0, W.c[(P.m + 1):(P.m + P.mLU)])
+    @. W.mwork *= P.wc[1:P.m]
+    if P.mLU > 0
+        ii = (P.m + 1):(P.m + P.mLU)
+        @. W.mwork[P.cineqLU] += P.wc[ii] * max(0.0, W.c[ii])
+    end
     W.nwork = jtprod!(nlp, W.x[1:P.n], W.mwork, W.nwork)
     end
-    return 0.5 * norm(W.nwork, Inf)
+    return norm(W.nwork, Inf)
 end

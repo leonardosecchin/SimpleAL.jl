@@ -5,7 +5,6 @@ using NLPModels
 using Printf
 using SparseArrays
 using AmplNLReader
-using Distances
 
 include("utils.jl")
 include("functions.jl")
@@ -160,7 +159,7 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
 
     # starting point
     W.x .= 0.0
-    @inbounds if isempty(x0)
+    @inbounds if isempty(x0) || length(x0) != n
         if !isempty(nlp.meta.x0)
             W.x[1:n] .= nlp.meta.x0
         end
@@ -185,12 +184,16 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
     end
 
     # compute objective function scaling factor
-    # Obs: NLPModels already evaluate f considering the "min" sense
     if extra_par.scale
         @inbounds @views W.nwork = grad!(nlp, W.x[1:n], W.nwork)
         wf = max(extra_par.wmin, min(1.0, 1.0/norm(W.nwork, Inf)))
     else
         wf = 1.0
+    end
+
+    # if the sense is max, minimize -f
+    if !nlp.minimize
+        wf *= -1
     end
 
     # compute constraints scaling factors
@@ -305,7 +308,11 @@ function al(
     P, W, st = initialize(nlp, extra_par, x0)
     if st != 0
         if verbose > 0
-            println("Error while initializing. Check if the problem has free contraints.")
+            if st == 5
+                println("Problem is infeasible. Check the constraints bounds.")
+            else
+                println("Error while initializing. Check if the problem has free constraints.")
+            end
         end
         return INFO(st, 0, [], NaN, NaN, NaN, NaN, [], NaN, NaN, 0.0)
     end
@@ -325,7 +332,7 @@ function al(
     W.rho = 1.0
     gL!(nlp, W.gL, P, W, W.x)
     minus_proj_lgL!(W.pgL, P, W, 1.0)
-    opt = compute_opt(P, W, epsfeas, Inf)
+    opt = compute_opt(P, W, Inf, extra_par.delta)
 
     # tolerance for the subproblem
     epsoptk = epsopt
@@ -438,7 +445,7 @@ function al(
         # objective, constraints, gL and pgL at new x were computed by spg
 
         # scaled optimality
-        opt = compute_opt(P, W, epsfeas, Inf, delta = extra_par.delta)
+        opt = compute_opt(P, W, Inf, extra_par.delta)
 
         # estimate multipliers
         @. W.lam += W.rho * W.c
@@ -475,7 +482,7 @@ function al(
         status,
         iter,
         deepcopy(W.x[1:P.n]),
-        nlp.meta.minimize ? W.f / P.wf : -W.f / P.wf,
+        W.f / P.wf,
         (status == 1) ? opt_infeas : infeas,
         opt,
         infeas_compl,

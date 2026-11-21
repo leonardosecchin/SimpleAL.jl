@@ -9,7 +9,7 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
     W.lastL .= -Inf
     @inbounds W.lastL[1] = L
 
-    opt = compute_opt(P, W, epsfeas, 2)
+    opt = compute_opt(P, W, Inf, par.delta)
 
     # initial spectral steplength
     tsmall = max(1e-7 * norm(W.x, Inf), 1e-10)
@@ -39,7 +39,7 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
         spg_print_info(W, iter, L, opt, false, status, verbose)
 
         # test whether a solution was found
-        if (max(opt, compute_opt(P, W, epsfeas, Inf)) <= epsoptk)
+        if opt <= epsoptk
             status = 0
             spg_print_info(W, iter, L, opt, true, status, verbose)
             break
@@ -57,23 +57,25 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
         end
 
         # lack of progress
-        currredf = Lprev - L
-        bestredf = max(bestredf, currredf)
-        if currredf <= par.epsnoprogf * bestredf
-            noprogf += 1
+        if iter > 0
+            currredf = Lprev - L
+            bestredf = max(bestredf, currredf)
+            if currredf <= par.epsnoprogf * bestredf
+                noprogf += 1
 
-            if noprogf >= par.maxnoprogf
-                W.x .= W.xbest
-                fc!(nlp, P, W, W.x)
-                gL!(nlp, W.gL, P, W, W.x)
-                minus_proj_lgL!(W.pgL, P, W, 1.0)
+                if noprogf >= par.maxnoprogf
+                    W.x .= W.xbest
+                    fc!(nlp, P, W, W.x)
+                    gL!(nlp, W.gL, P, W, W.x)
+                    minus_proj_lgL!(W.pgL, P, W, 1.0)
 
-                status = 5
-                spg_print_info(W, iter, L, opt, true, status, verbose)
-                break
+                    status = 5
+                    spg_print_info(W, iter, L, opt, true, status, verbose)
+                    break
+                end
+            else
+                noprogf = 0
             end
-        else
-            noprogf = 0
         end
 
         # direction
@@ -127,7 +129,7 @@ function spg(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, epsoptk, epsfeas, verbose
         W.gL .= W.gLnew
 
         minus_proj_lgL!(W.pgL, P, W, 1.0)
-        opt = compute_opt(P, W, epsfeas, 2)
+        opt = compute_opt(P, W, Inf, par.delta)
 
         # update spectral steplength
         sts = dot(W.s, W.s)
@@ -205,8 +207,7 @@ function spg_compl(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, L)
 
     Lnew = L
     flag = 0
-    xnorm2 = Inf
-    while (Lnew > Lmax - 0.5 * r * par.eta * xnorm2)
+    while (true)
         if r > 1.0/par.lmin
             # r is too large
             flag = 1
@@ -228,7 +229,15 @@ function spg_compl(nlp, P::PROBLEM, W::WORK, par::EXTRA_PAR, L)
 
         fc!(nlp, P, W, W.xnew)
         Lnew = augL(P, W)
-        xnorm2 = sqeuclidean(W.xnew, W.x)
+        xnorm2 = 0.0
+        for i in eachindex(W.x)
+            xnorm2 += (W.xnew[i] - W.x[i])^2
+        end
+
+        if Lnew <= Lmax - 0.5 * r * par.eta * xnorm2
+            break
+        end
+
         r *= par.r_incfac
     end
 
