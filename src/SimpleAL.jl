@@ -192,7 +192,7 @@ function initialize(nlp, extra_par::EXTRA_PAR, x0)
     end
 
     # if the sense is max, minimize -f
-    if !nlp.minimize
+    if !nlp.meta.minimize
         wf *= -1
     end
 
